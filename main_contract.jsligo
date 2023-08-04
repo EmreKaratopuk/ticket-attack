@@ -1,0 +1,41 @@
+type storage = map<address, ticket<string>>;
+type return_ = [list<operation>, storage];
+type mint_map = map<address, nat>;
+type opt_ticket = option<ticket<string>>;
+
+@entry
+const mint_shares = (param: mint_map, store: storage): return_ => {
+
+    let add_shares = ([storage_map, user]: [storage, [address, nat]]):storage => {
+        let opt_new_ticket: opt_ticket = Tezos.create_ticket("vote", user[1]);
+        let new_ticket: ticket<string> = Option.unopt_with_error(opt_new_ticket, "Ticket amount cannot be 0");
+
+        let [opt_stored_ticket, modified_store]: [opt_ticket, storage] = Map.get_and_update(user[0], None(), storage_map);
+        let updated_store: storage = match(opt_stored_ticket, {
+            Some: (stored_ticket: ticket<string>) => {
+                let opt_user_ticket: opt_ticket = Tezos.join_tickets([new_ticket, stored_ticket]);
+                return Map.update(user[0], opt_user_ticket, modified_store);
+            };
+            None: () => Map.add(user[0], new_ticket, modified_store);
+        });
+
+        return updated_store;
+
+    } 
+
+    let updated_shares: storage = Map.fold(add_shares, param, store);
+    return [list([]), updated_shares];
+};
+
+@entry
+const claim_share = (owner_contract: address, store: storage): return_ => {
+
+    let [opt_store_ticket, modified_store]: [opt_ticket, storage] = Map.get_and_update(owner_contract, None(), store);
+    let ticket: ticket<string> = Option.unopt_with_error(opt_store_ticket, "Given address does not have any share");
+
+    let opt_target_contract = Tezos.get_contract_opt(owner_contract);
+    let target_contract = Option.unopt_with_error(opt_target_contract, "Contract address or entrypoint is wrong");
+    let transfer: operation = Tezos.transaction(ticket, 0 as mutez, target_contract);
+
+    return [list([transfer]), modified_store];
+}

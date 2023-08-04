@@ -1,0 +1,42 @@
+{ parameter (or (address %claim_share) (map %mint_shares address nat)) ;
+  storage (map address (ticket string)) ;
+  code { UNPAIR ;
+         IF_LEFT
+           { SWAP ;
+             NONE (ticket string) ;
+             DUP 3 ;
+             GET_AND_UPDATE ;
+             IF_NONE
+               { PUSH string "Given address does not have any share" ; FAILWITH }
+               {} ;
+             DIG 2 ;
+             CONTRACT (ticket string) ;
+             PUSH string "Contract address or entrypoint is wrong" ;
+             SWAP ;
+             IF_NONE { FAILWITH } { SWAP ; DROP } ;
+             PUSH mutez 0 ;
+             DIG 2 ;
+             TRANSFER_TOKENS ;
+             SWAP ;
+             NIL operation ;
+             DIG 2 ;
+             CONS }
+           { ITER { SWAP ;
+                    DUP 2 ;
+                    CDR ;
+                    PUSH string "vote" ;
+                    TICKET ;
+                    PUSH string "Ticket amount cannot be 0" ;
+                    SWAP ;
+                    IF_NONE { FAILWITH } { SWAP ; DROP } ;
+                    SWAP ;
+                    NONE (ticket string) ;
+                    DUP 4 ;
+                    CAR ;
+                    GET_AND_UPDATE ;
+                    IF_NONE
+                      { SWAP ; DIG 2 ; CAR ; SWAP ; SOME ; SWAP ; UPDATE }
+                      { DIG 2 ; PAIR ; JOIN_TICKETS ; DIG 2 ; CAR ; UPDATE } } ;
+             NIL operation } ;
+         PAIR } }
+

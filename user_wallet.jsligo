@@ -1,0 +1,15 @@
+type storage = option<ticket<string>>;
+type return_ = [list<operation>, storage];
+
+@entry
+const claim = (param: ticket<string>, store: storage): return_ => {
+    let new_store: storage = match(store, {
+        Some: (storage_ticket: ticket<string>) => {
+            let new_ticket: option<ticket<string>> = Tezos.join_tickets([param, storage_ticket]);
+            return new_ticket;
+        };
+        None: () => Some(param); 
+    });
+
+    return [list([]), new_store];
+}
