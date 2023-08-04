@@ -1,0 +1,18 @@
+{ parameter (ticket string) ;
+  storage (pair address (option (ticket string))) ;
+  code {
+        UNPAPAIR ;
+        SWAP;
+        DUP;
+        DUG 3;
+        SENDER;
+        IFCMPNEQ
+            { PUSH string "Sender is not the admin" ; FAILWITH }
+            {};
+        SWAP ;
+        IF_NONE { SOME } { SWAP ; PAIR ; JOIN_TICKETS } ;
+        SWAP;
+        PAIR;
+        NIL operation ;
+        PAIR } };
+
