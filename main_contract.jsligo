@@ -1,25 +1,32 @@
 type shareholders = map<address, ticket<string>>;
+// shareholders stores tickets with the address of their owners
 type storage = [address, shareholders];
 type return_ = [list<operation>, storage];
 
 type mint_map = map<address, nat>;
+// mint map: a map of new ticket owners' addresses and their ticket amounts 
 type opt_ticket = option<ticket<string>>;
 
 @entry
 const mint_shares = (param: mint_map, store: storage): return_ => {
-    const [admin, users] = store;
+    const [admin, users]: [address, shareholders] = store;
     if (Tezos.get_sender() != admin) failwith("Sender is not the admin");
 
+    // add_shares function is used with Map.fold to modify the current storage by adding new owners and their tickets
     let add_shares = ([storage_map, user]: [shareholders, [address, nat]]): shareholders => {
         let opt_new_ticket: opt_ticket = Tezos.create_ticket("vote", user[1]);
         let new_ticket: ticket<string> = Option.unopt_with_error(opt_new_ticket, "Ticket amount cannot be 0");
 
+        // Map.get_and_update is used for having only one copy of a ticket
         let [opt_stored_ticket, modified_store]: [opt_ticket, shareholders] = Map.get_and_update(user[0], None(), storage_map);
+        
         let updated_store: shareholders = match(opt_stored_ticket, {
             Some: (stored_ticket: ticket<string>) => {
+                // if the given user has a ticket in the storage, the ticket in the storage is joined with the new ticket
                 let opt_user_ticket: opt_ticket = Tezos.join_tickets([new_ticket, stored_ticket]);
                 return Map.update(user[0], opt_user_ticket, modified_store);
             };
+            // if the given user does not have a ticket in the storage, new ticket is added to the storage
             None: () => Map.add(user[0], new_ticket, modified_store);
         });
 
@@ -31,9 +38,9 @@ const mint_shares = (param: mint_map, store: storage): return_ => {
     return [list([]), [admin, updated_shares]];
 };
 
-@entry
+@entry  // if the given address has a ticket in the storage , claim_share entrypoint sends the ticket to the address 
 const claim_share = (owner_contract: address, store: storage): return_ => {
-    const [admin, users] = store;
+    const [admin, users]: [address, shareholders] = store;
 
     let [opt_store_ticket, modified_store]: [opt_ticket, shareholders] = Map.get_and_update(owner_contract, None(), users);
     let ticket: ticket<string> = Option.unopt_with_error(opt_store_ticket, "Given address does not have any share");
