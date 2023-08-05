@@ -1,15 +1,17 @@
 { parameter (or (address %claim_share) (map %mint_shares address nat)) ;
-  storage (map address (ticket string)) ;
+  storage (pair address (map address (ticket string))) ;
   code { UNPAIR ;
          IF_LEFT
            { SWAP ;
+             UNPAIR ;
+             SWAP ;
              NONE (ticket string) ;
-             DUP 3 ;
+             DUP 4 ;
              GET_AND_UPDATE ;
              IF_NONE
                { PUSH string "Given address does not have any share" ; FAILWITH }
                {} ;
-             DIG 2 ;
+             DIG 3 ;
              CONTRACT (ticket string) ;
              PUSH string "Contract address or entrypoint is wrong" ;
              SWAP ;
@@ -18,10 +20,21 @@
              DIG 2 ;
              TRANSFER_TOKENS ;
              SWAP ;
+             DIG 2 ;
+             PAIR ;
              NIL operation ;
              DIG 2 ;
              CONS }
-           { ITER { SWAP ;
+           { SWAP ;
+             UNPAIR ;
+             DUP ;
+             SENDER ;
+             COMPARE ;
+             NEQ ;
+             IF { PUSH string "Sender is not the admin" ; FAILWITH } {} ;
+             SWAP ;
+             DIG 2 ;
+             ITER { SWAP ;
                     DUP 2 ;
                     CDR ;
                     PUSH string "vote" ;
@@ -37,6 +50,8 @@
                     IF_NONE
                       { SWAP ; DIG 2 ; CAR ; SWAP ; SOME ; SWAP ; UPDATE }
                       { DIG 2 ; PAIR ; JOIN_TICKETS ; DIG 2 ; CAR ; UPDATE } } ;
+             SWAP ;
+             PAIR ;
              NIL operation } ;
          PAIR } }
 

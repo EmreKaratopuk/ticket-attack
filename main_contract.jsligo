@@ -1,17 +1,21 @@
-type storage = map<address, ticket<string>>;
+type shareholders = map<address, ticket<string>>;
+type storage = [address, shareholders];
 type return_ = [list<operation>, storage];
+
 type mint_map = map<address, nat>;
 type opt_ticket = option<ticket<string>>;
 
 @entry
 const mint_shares = (param: mint_map, store: storage): return_ => {
+    const [admin, users] = store;
+    if (Tezos.get_sender() != admin) failwith("Sender is not the admin");
 
-    let add_shares = ([storage_map, user]: [storage, [address, nat]]):storage => {
+    let add_shares = ([storage_map, user]: [shareholders, [address, nat]]): shareholders => {
         let opt_new_ticket: opt_ticket = Tezos.create_ticket("vote", user[1]);
         let new_ticket: ticket<string> = Option.unopt_with_error(opt_new_ticket, "Ticket amount cannot be 0");
 
-        let [opt_stored_ticket, modified_store]: [opt_ticket, storage] = Map.get_and_update(user[0], None(), storage_map);
-        let updated_store: storage = match(opt_stored_ticket, {
+        let [opt_stored_ticket, modified_store]: [opt_ticket, shareholders] = Map.get_and_update(user[0], None(), storage_map);
+        let updated_store: shareholders = match(opt_stored_ticket, {
             Some: (stored_ticket: ticket<string>) => {
                 let opt_user_ticket: opt_ticket = Tezos.join_tickets([new_ticket, stored_ticket]);
                 return Map.update(user[0], opt_user_ticket, modified_store);
@@ -23,19 +27,20 @@ const mint_shares = (param: mint_map, store: storage): return_ => {
 
     } 
 
-    let updated_shares: storage = Map.fold(add_shares, param, store);
-    return [list([]), updated_shares];
+    let updated_shares: shareholders = Map.fold(add_shares, param, users);
+    return [list([]), [admin, updated_shares]];
 };
 
 @entry
 const claim_share = (owner_contract: address, store: storage): return_ => {
+    const [admin, users] = store;
 
-    let [opt_store_ticket, modified_store]: [opt_ticket, storage] = Map.get_and_update(owner_contract, None(), store);
+    let [opt_store_ticket, modified_store]: [opt_ticket, shareholders] = Map.get_and_update(owner_contract, None(), users);
     let ticket: ticket<string> = Option.unopt_with_error(opt_store_ticket, "Given address does not have any share");
 
     let opt_target_contract = Tezos.get_contract_opt(owner_contract);
     let target_contract = Option.unopt_with_error(opt_target_contract, "Contract address or entrypoint is wrong");
     let transfer: operation = Tezos.transaction(ticket, 0 as mutez, target_contract);
 
-    return [list([transfer]), modified_store];
+    return [list([transfer]), [admin, modified_store]];
 }
